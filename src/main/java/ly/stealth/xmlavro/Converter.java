@@ -26,118 +26,166 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Converter {
-    public static Schema createSchema(String xsd) { return new SchemaBuilder().createSchema(xsd); }
-    public static Schema createSchema(File file) { return new SchemaBuilder().createSchema(file); }
-    public static Schema createSchema(Reader reader) { return new SchemaBuilder().createSchema(reader); }
-    public static Schema createSchema(InputStream stream) { return new SchemaBuilder().createSchema(stream); }
+	public static Schema createSchema(String xsd) {
+		return new SchemaBuilder().createSchema(xsd);
+	}
 
-    public static <T> T createDatum(Schema schema, File file) { return new DatumBuilder(schema).createDatum(file); }
-    public static <T> T createDatum(Schema schema, String xml) { return new DatumBuilder(schema).createDatum(xml); }
-    public static <T> T createDatum(Schema schema, Reader reader) { return new DatumBuilder(schema).createDatum(reader); }
-    public static <T> T createDatum(Schema schema, InputStream stream) { return new DatumBuilder(schema).createDatum(stream); }
+	public static Schema createSchema(File file) {
+		return new SchemaBuilder().createSchema(file);
+	}
 
-    private static class Options {
-        static final String USAGE = "{-d|--debug} {-b|--baseDir <baseDir>} <xsdFile> <xmlFile> {<avscFile>} {<avroFile>}";
+	public static Schema createSchema(Reader reader) {
+		return new SchemaBuilder().createSchema(reader);
+	}
 
-        File xsdFile;
-        File xmlFile;
+	public static Schema createSchema(InputStream stream) {
+		return new SchemaBuilder().createSchema(stream);
+	}
 
-        File avscFile;
-        File avroFile;
+	public static <T> T createDatum(Schema schema, File file) {
+		return new DatumBuilder(schema).createDatum(file, false);
+	}
 
-        boolean debug;
-        File baseDir;
+	public static <T> T createDatum(Schema schema, String xml) {
+		return new DatumBuilder(schema).createDatum(xml, false);
+	}
 
-        Options(String... args) {
-            List<String> files = new ArrayList<>();
+	public static <T> T createDatum(Schema schema, Reader reader) {
+		return new DatumBuilder(schema).createDatum(reader, false);
+	}
 
-            for (int i = 0; i < args.length; i++) {
-                String arg = args[i];
+	public static <T> T createDatum(Schema schema, InputStream stream) {
+		return new DatumBuilder(schema).createDatum(stream, false);
+	}
 
-                if (arg.startsWith("-"))
-                    switch (arg) {
-                        case "-d":
-                        case "--debug":
-                            debug = true;
-                            break;
-                        case "-b":
-                        case "--baseDir":
-                            if (i == args.length - 1) throw new IllegalArgumentException("Base dir required");
-                            i++;
-                            baseDir = new File(args[i]);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported option " + arg);
-                    }
-                else
-                    files.add(arg);
-            }
+	public static <T> T createSpecificDatum(Schema schema, File file) {
+		return new DatumBuilder(schema).createDatum(file, true);
+	}
 
-            if (files.size() < 2 || files.size() > 4)
-                throw new IllegalArgumentException("Incorrect number of in/out files. Expected [2..4]");
+	public static <T> T createSpecificDatum(Schema schema, String xml) {
+		return new DatumBuilder(schema).createDatum(xml, true);
+	}
 
-            xsdFile = replaceBaseDir(files.get(0), baseDir);
-            xmlFile = replaceBaseDir(files.get(1), baseDir);
+	public static <T> T createSpecificDatum(Schema schema, Reader reader) {
+		return new DatumBuilder(schema).createDatum(reader, true);
+	}
 
-            avscFile = files.size() > 2 ? replaceBaseDir(files.get(2), baseDir) : replaceExtension(xsdFile, "avsc");
-            avroFile = files.size() > 3 ? replaceBaseDir(files.get(3), baseDir) : replaceExtension(xmlFile, "avro");
-        }
+	public static <T> T createSpecificDatum(Schema schema, InputStream stream) {
+		return new DatumBuilder(schema).createDatum(stream, true);
+	}
 
-        private static File replaceExtension(File file, String newExtension) {
-            String fileName = file.getPath();
+	private static class Options {
+		static final String USAGE = "{-d|--debug} {-b|--baseDir <baseDir>} <xsdFile> <xmlFile> {<avscFile>} {<avroFile>}";
 
-            int dotIdx = fileName.lastIndexOf('.');
-            if (dotIdx != -1) fileName = fileName.substring(0, dotIdx);
+		File xsdFile;
+		File xmlFile;
 
-            return new File(fileName + "." + newExtension);
-        }
+		File avscFile;
+		File avroFile;
 
-        private static File replaceBaseDir(String path, File baseDir) {
-            File file = new File(path);
-            if (baseDir == null || file.isAbsolute()) return file;
-            return new File(baseDir, file.getPath());
-        }
-    }
+		boolean debug;
+		File baseDir;
 
-    private static class BaseDirResolver implements SchemaBuilder.Resolver {
-        private File baseDir;
-        private BaseDirResolver(File baseDir) { this.baseDir = baseDir; }
+		Options(String... args) {
+			List<String> files = new ArrayList<>();
 
-        public InputStream getStream(String systemId) {
-            File file = new File(baseDir, systemId);
+			for (int i = 0; i < args.length; i++) {
+				String arg = args[i];
 
-            try { return new FileInputStream(file); }
-            catch (FileNotFoundException e) { return null; }
-        }
-    }
+				if (arg.startsWith("-"))
+					switch (arg) {
+					case "-d":
+					case "--debug":
+						debug = true;
+						break;
+					case "-b":
+					case "--baseDir":
+						if (i == args.length - 1)
+							throw new IllegalArgumentException("Base dir required");
+						i++;
+						baseDir = new File(args[i]);
+						break;
+					default:
+						throw new IllegalArgumentException("Unsupported option " + arg);
+					}
+				else
+					files.add(arg);
+			}
 
-    public static void main(String... args) throws IOException {
-        Options opts;
-        try {
-            opts = new Options(args);
-        } catch (IllegalArgumentException e) {
-            System.out.println("XML Avro converter.\nError: " + e.getMessage() + "\n" + "Usage: " + Options.USAGE + "\n");
-            System.exit(1);
-            return;
-        }
+			if (files.size() < 2 || files.size() > 4)
+				throw new IllegalArgumentException("Incorrect number of in/out files. Expected [2..4]");
 
-        System.out.println("Converting: \n" + opts.xsdFile + " -> " + opts.avscFile + "\n" + opts.xmlFile + " -> " + opts.avroFile);
+			xsdFile = replaceBaseDir(files.get(0), baseDir);
+			xmlFile = replaceBaseDir(files.get(1), baseDir);
 
-        SchemaBuilder schemaBuilder = new SchemaBuilder();
-        schemaBuilder.setDebug(opts.debug);
-        if (opts.baseDir != null) schemaBuilder.setResolver(new BaseDirResolver(opts.baseDir));
-        Schema schema = schemaBuilder.createSchema(opts.xsdFile);
+			avscFile = files.size() > 2 ? replaceBaseDir(files.get(2), baseDir) : replaceExtension(xsdFile, "avsc");
+			avroFile = files.size() > 3 ? replaceBaseDir(files.get(3), baseDir) : replaceExtension(xmlFile, "avro");
+		}
 
-        try (Writer writer = new FileWriter(opts.avscFile)) {
-            writer.write(schema.toString(true));
-        }
+		private static File replaceExtension(File file, String newExtension) {
+			String fileName = file.getPath();
 
-        DatumBuilder datumBuilder = new DatumBuilder(schema);
-        Object datum = datumBuilder.createDatum(opts.xmlFile);
+			int dotIdx = fileName.lastIndexOf('.');
+			if (dotIdx != -1)
+				fileName = fileName.substring(0, dotIdx);
 
-        try (OutputStream stream = new FileOutputStream(opts.avroFile)) {
-            DatumWriter<Object> datumWriter = new SpecificDatumWriter<>(schema);
-            datumWriter.write(datum, EncoderFactory.get().directBinaryEncoder(stream, null));
-        }
-    }
+			return new File(fileName + "." + newExtension);
+		}
+
+		private static File replaceBaseDir(String path, File baseDir) {
+			File file = new File(path);
+			if (baseDir == null || file.isAbsolute())
+				return file;
+			return new File(baseDir, file.getPath());
+		}
+	}
+
+	public static class BaseDirResolver implements SchemaBuilder.Resolver {
+		private File baseDir;
+
+		public BaseDirResolver(File baseDir) {
+			this.baseDir = baseDir;
+		}
+
+		public InputStream getStream(String systemId) {
+			File file = new File(baseDir, systemId);
+
+			try {
+				return new FileInputStream(file);
+			} catch (FileNotFoundException e) {
+				return null;
+			}
+		}
+	}
+
+	public static void main(String... args) throws IOException {
+		Options opts;
+		try {
+			opts = new Options(args);
+		} catch (IllegalArgumentException e) {
+			System.out.println("XML Avro converter.\nError: " + e.getMessage() + "\n" + "Usage: " + Options.USAGE + "\n");
+			System.exit(1);
+			return;
+		}
+
+		System.out.println("Converting: \n" + opts.xsdFile + " -> " + opts.avscFile + "\n" + opts.xmlFile + " -> " + opts.avroFile);
+
+		SchemaBuilder schemaBuilder = new SchemaBuilder();
+		schemaBuilder.setDebug(opts.debug);
+		if (opts.baseDir != null)
+			schemaBuilder.setResolver(new BaseDirResolver(opts.baseDir));
+		Schema schema = schemaBuilder.createSchema(opts.xsdFile);
+
+		try (Writer writer = new FileWriter(opts.avscFile)) {
+			writer.write(schema.toString(true));
+		}
+
+		DatumBuilder datumBuilder = new DatumBuilder(schema);
+		Object datum = datumBuilder.createDatum(opts.xmlFile, false);
+
+		try (OutputStream stream = new FileOutputStream(opts.avroFile)) {
+			DatumWriter<Object> datumWriter = new SpecificDatumWriter<>(schema);
+			datumWriter.write(datum, EncoderFactory.get().directBinaryEncoder(stream, null));
+		}
+	}
 }

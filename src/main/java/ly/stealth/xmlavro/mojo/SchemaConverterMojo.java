@@ -2,13 +2,15 @@ package ly.stealth.xmlavro.mojo;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import ly.stealth.xmlavro.BaseDirResolver;
 import ly.stealth.xmlavro.SchemaBuilder;
+
 import org.apache.avro.Schema;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoFailureException;
@@ -72,24 +74,6 @@ public class SchemaConverterMojo extends AbstractMojo {
         String base = (dotIndex > 0) ? name.substring(0, dotIndex) : name;
 
         return Paths.get(outputDirectory.getAbsolutePath(), base + ".avsc");
-    }
-
-    private static class BaseDirResolver implements SchemaBuilder.Resolver {
-        private Path baseDir;
-
-        private BaseDirResolver(Path baseDir) {
-            this.baseDir = baseDir;
-        }
-
-        @Override
-        public InputStream getStream(String systemId) {
-            Path file = baseDir.resolve(systemId);
-            try {
-                return Files.newInputStream(file);
-            } catch (IOException e) {
-                return null;
-            }
-        }
     }
 
     private void convert(String includedFile) {

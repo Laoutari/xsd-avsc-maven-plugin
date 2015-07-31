@@ -16,14 +16,21 @@
  */
 package ly.stealth.xmlavro;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumWriter;
-
-import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Converter {
 	public static Schema createSchema(String xsd) {
@@ -84,7 +91,7 @@ public class Converter {
 		File avroFile;
 
 		boolean debug;
-		File baseDir;
+		String baseDir;
 
 		Options(String... args) {
 			List<String> files = new ArrayList<>();
@@ -103,7 +110,7 @@ public class Converter {
 						if (i == args.length - 1)
 							throw new IllegalArgumentException("Base dir required");
 						i++;
-						baseDir = new File(args[i]);
+						baseDir = args[i];
 						break;
 					default:
 						throw new IllegalArgumentException("Unsupported option " + arg);
@@ -132,29 +139,11 @@ public class Converter {
 			return new File(fileName + "." + newExtension);
 		}
 
-		private static File replaceBaseDir(String path, File baseDir) {
+		private static File replaceBaseDir(String path, String baseDir2) {
 			File file = new File(path);
-			if (baseDir == null || file.isAbsolute())
+			if (baseDir2 == null || file.isAbsolute())
 				return file;
-			return new File(baseDir, file.getPath());
-		}
-	}
-
-	public static class BaseDirResolver implements SchemaBuilder.Resolver {
-		private File baseDir;
-
-		public BaseDirResolver(File baseDir) {
-			this.baseDir = baseDir;
-		}
-
-		public InputStream getStream(String systemId) {
-			File file = new File(baseDir, systemId);
-
-			try {
-				return new FileInputStream(file);
-			} catch (FileNotFoundException e) {
-				return null;
-			}
+			return new File(baseDir2, file.getPath());
 		}
 	}
 

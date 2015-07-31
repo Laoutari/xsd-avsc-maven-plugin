@@ -1,24 +1,48 @@
 package ly.stealth.xmlavro;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import ly.stealth.xmlavro.EntityResolver.Resolver;
+
 import org.apache.avro.Schema;
 import org.apache.xerces.dom.DOMInputImpl;
 import org.apache.xerces.impl.Constants;
 import org.apache.xerces.impl.xs.XMLSchemaLoader;
 import org.apache.xerces.impl.xs.XSComplexTypeDecl;
-import org.apache.xerces.xni.XMLResourceIdentifier;
 import org.apache.xerces.xni.XNIException;
-import org.apache.xerces.xni.parser.XMLEntityResolver;
 import org.apache.xerces.xni.parser.XMLErrorHandler;
-import org.apache.xerces.xni.parser.XMLInputSource;
 import org.apache.xerces.xni.parser.XMLParseException;
-import org.apache.xerces.xs.*;
+import org.apache.xerces.xs.XSAttributeDeclaration;
+import org.apache.xerces.xs.XSAttributeUse;
+import org.apache.xerces.xs.XSComplexTypeDefinition;
+import org.apache.xerces.xs.XSConstants;
+import org.apache.xerces.xs.XSElementDeclaration;
+import org.apache.xerces.xs.XSModel;
+import org.apache.xerces.xs.XSModelGroup;
+import org.apache.xerces.xs.XSNamedMap;
+import org.apache.xerces.xs.XSObject;
+import org.apache.xerces.xs.XSObjectList;
+import org.apache.xerces.xs.XSParticle;
+import org.apache.xerces.xs.XSSimpleTypeDefinition;
+import org.apache.xerces.xs.XSTerm;
+import org.apache.xerces.xs.XSTypeDefinition;
 import org.w3c.dom.DOMError;
 import org.w3c.dom.DOMErrorHandler;
 import org.w3c.dom.DOMLocator;
 import org.w3c.dom.ls.LSInput;
-
-import java.io.*;
-import java.util.*;
 
 public class SchemaBuilder {
 	private boolean debug;
@@ -129,8 +153,8 @@ public class SchemaBuilder {
 			XSTypeDefinition type = el.getTypeDefinition();
 
 			debug("Processing root element " + el.getName() + "{" + el.getNamespace() + "}");
-			Schema schema = createTypeSchema(type, false, false);
-			schemas.put(new Source(el.getName()), schema);
+			Schema schema = createTypeSchema(type, el, false, false);
+			schemas.put(new Source(el.getName(), el.getNamespace()), schema);
 		}
 
 		if (schemas.size() == 0)
@@ -142,34 +166,31 @@ public class SchemaBuilder {
 	}
 
 	private Schema createRootRecordSchema(Map<Source, Schema> schemas) {
-		List<Schema.Field> fields = new ArrayList<>();
+//		Schema nullSchema = Schema.create(Schema.Type.NULL);
+		List<Schema> root = new ArrayList<Schema>(schemas.size());
 
 		for (Source source : schemas.keySet()) {
 			Schema schema = schemas.get(source);
-			Schema nullSchema = Schema.create(Schema.Type.NULL);
-			Schema optionalSchema = Schema.createUnion(Arrays.asList(nullSchema, schema));
+//			Schema optionalSchema = Schema.createUnion(Arrays.asList(nullSchema, schema));
 
-			Schema.Field field = new Schema.Field(source.getName(), optionalSchema, null, null);
-			field.addProp(Source.SOURCE, "" + source);
-			fields.add(field);
+//			Schema doc = Schema.createRecord(source.getName(), "", getNamespace(), false);
+//			schema.setFields(Arrays.asList(new Schema.Field(source.getName(), optionalSchema, null, null)));
+			schema.addProp(Source.SOURCE, "" + source);
+			root.add(schema);
 		}
-
-		Schema schema = Schema.createRecord(nextTypeName(), "", namespace, false);
-		schema.setFields(fields);
-		schema.addProp(Source.SOURCE, Source.DOCUMENT);
-		return schema;
+		return Schema.createUnion(root);
 	}
 
 	private int typeLevel;
 
-	private Schema createTypeSchema(XSTypeDefinition type, boolean optional, boolean array) {
+	private Schema createTypeSchema(XSTypeDefinition type, XSElementDeclaration el, boolean optional, boolean array) {
 		typeLevel++;
 		Schema schema;
 
 		if (type.getTypeCategory() == XSTypeDefinition.SIMPLE_TYPE)
 			schema = Schema.create(getPrimitiveType((XSSimpleTypeDefinition) type));
 		else {
-			String name = complexTypeName(type);
+			String name = complexTypeName(el);
 			debug("Creating schema for type " + name);
 
 			schema = schemas.get(name);
@@ -305,7 +326,7 @@ public class SchemaBuilder {
 			return new Schema.Field(Source.WILDCARD, map, null, null);
 		}
 
-		Schema fieldSchema = createTypeSchema(type, optional, array);
+		Schema fieldSchema = createTypeSchema(type, source instanceof XSElementDeclaration ? (XSElementDeclaration) source : null, optional, array);
 
 		String name = validName(source.getName());
 		name = uniqueFieldName(fields, name);
@@ -334,9 +355,16 @@ public class SchemaBuilder {
 		return name + (duplicates > 0 ? duplicates - 1 : "");
 	}
 
-	String complexTypeName(XSTypeDefinition type) {
-		String name = validName(((XSComplexTypeDecl) type).getTypeName());
-		return name != null ? name : nextTypeName();
+	private Set<String> names = new HashSet<String>();
+
+	String complexTypeName(XSElementDeclaration el) {
+		String name = validName(el.getName());
+		if (name == null || names.contains(name)) {
+			name = validName(((XSComplexTypeDecl) el.getTypeDefinition()).getTypeName());
+		}
+		name = name != null ? name : nextTypeName();
+		names.add(name);
+		return name;
 	}
 
 	String validName(String name) {
@@ -379,7 +407,7 @@ public class SchemaBuilder {
 		return "type" + typeName++;
 	}
 
-	private void debug(String s) {
+	void debug(String s) {
 		if (!debug)
 			return;
 
@@ -434,31 +462,9 @@ public class SchemaBuilder {
 		}
 	}
 
-	private class EntityResolver implements XMLEntityResolver {
-		private Resolver resolver;
-
-		private EntityResolver(Resolver resolver) {
-			this.resolver = resolver;
-		}
-
-		@Override
-		public XMLInputSource resolveEntity(XMLResourceIdentifier id) throws XNIException, IOException {
-			String systemId = id.getLiteralSystemId();
-			debug("Resolving " + systemId);
-
-			XMLInputSource source = new XMLInputSource(id);
-			source.setByteStream(resolver.getStream(systemId));
-			return source;
-		}
-	}
-
-	public static interface Resolver {
-		InputStream getStream(String systemId);
-	}
-
 	public static void main(String args[]) throws Exception {
 		boolean debug = false;
-		File baseDir = null;
+		String baseDir = null;
 		File out = new File("out.avsc");
 		String in = null;
 
@@ -476,7 +482,7 @@ public class SchemaBuilder {
 					if (i == args.length - 1)
 						throw new IllegalArgumentException("Base dir required");
 					i++;
-					baseDir = new File(args[i]);
+					baseDir = args[i];
 					break;
 				case "-o":
 					if (i == args.length - 1)
@@ -499,7 +505,7 @@ public class SchemaBuilder {
 		SchemaBuilder builder = new SchemaBuilder();
 		builder.setDebug(debug);
 		if (baseDir != null)
-			builder.setResolver(new Converter.BaseDirResolver(baseDir));
+			builder.setResolver(new BaseDirResolver(baseDir));
 		Schema schema = builder.createSchema(new File(in));
 		java.io.FileWriter w = new java.io.FileWriter(out);
 		w.write(schema.toString(true));

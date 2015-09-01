@@ -334,7 +334,7 @@ public class SchemaBuilder {
 		Schema.Field field = new Schema.Field(name, fieldSchema, null, null);
 
 		boolean attribute = source.getType() == XSConstants.ATTRIBUTE_DECLARATION;
-		field.addProp(Source.SOURCE, "" + new Source(source.getName(), attribute));
+		field.addProp(Source.SOURCE, "" + new Source(source.getName(), source.getNamespace(), attribute));
 
 		return field;
 	}

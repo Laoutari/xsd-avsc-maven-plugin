@@ -25,6 +25,7 @@ import org.apache.xerces.impl.xs.XSComplexTypeDecl;
 import org.apache.xerces.xni.XNIException;
 import org.apache.xerces.xni.parser.XMLErrorHandler;
 import org.apache.xerces.xni.parser.XMLParseException;
+import org.apache.xerces.xs.StringList;
 import org.apache.xerces.xs.XSAttributeDeclaration;
 import org.apache.xerces.xs.XSAttributeUse;
 import org.apache.xerces.xs.XSComplexTypeDefinition;
@@ -166,30 +167,56 @@ public class SchemaBuilder {
 	}
 
 	private Schema createRootRecordSchema(Map<Source, Schema> schemas) {
-//		Schema nullSchema = Schema.create(Schema.Type.NULL);
-		List<Schema> root = new ArrayList<Schema>(schemas.size());
+		Schema nullSchema = Schema.create(Schema.Type.NULL);
+//		List<Schema> root = new ArrayList<Schema>(schemas.size());
+		List<Schema.Field> fields = new ArrayList<Schema.Field>(schemas.size());
+
+		Schema root = Schema.createRecord("root", "", namespace, false);
 
 		for (Source source : schemas.keySet()) {
 			Schema schema = schemas.get(source);
-//			Schema optionalSchema = Schema.createUnion(Arrays.asList(nullSchema, schema));
+			Schema optionalSchema = Schema.createUnion(Arrays.asList(nullSchema, schema));
 
 //			Schema doc = Schema.createRecord(source.getName(), "", getNamespace(), false);
 //			schema.setFields(Arrays.asList(new Schema.Field(source.getName(), optionalSchema, null, null)));
+			Schema.Field f = new Schema.Field(source.getName(), optionalSchema, null, null);
 			schema.addProp(Source.SOURCE, "" + source);
-			root.add(schema);
+			f.addProp(Source.SOURCE, "" + source);
+			fields.add(f);
+//			root.add(schema);
 		}
-		return Schema.createUnion(root);
+		root.setFields(fields);
+		root.addProp(Source.SOURCE, Source.DOCUMENT);
+//		return Schema.createUnion(root);
+		return root;
 	}
 
 	private int typeLevel;
 
 	private Schema createTypeSchema(XSTypeDefinition type, XSElementDeclaration el, boolean optional, boolean array) {
 		typeLevel++;
-		Schema schema;
+		Schema schema = null;
 
-		if (type.getTypeCategory() == XSTypeDefinition.SIMPLE_TYPE)
-			schema = Schema.create(getPrimitiveType((XSSimpleTypeDefinition) type));
-		else {
+		if (type.getTypeCategory() == XSTypeDefinition.SIMPLE_TYPE) {
+			XSSimpleTypeDefinition stype = (XSSimpleTypeDefinition) type;
+			StringList enumList = stype.getLexicalEnumeration();
+			if (enumList != null && !enumList.isEmpty() && !primitives.containsKey(stype.getBuiltInKind())) {
+				String name = validName(type.getName());
+				if (name == null)
+					name = nextTypeName();
+				schema = schemas.get(name);
+				if (schema == null) {
+					try {
+						schema = Schema.createEnum(name, "", namespace, enumList);
+						schemas.put(name, schema);
+					} catch (Exception e) {
+						debug("/!\\ warning: failed to convert '" + type.getName() + "' to enum. " + e.getMessage());
+					}
+				}
+			}
+			if (schema == null)
+				schema = Schema.create(getPrimitiveType(stype));
+		} else {
 			String name = complexTypeName(el);
 			debug("Creating schema for type " + name);
 
@@ -224,11 +251,11 @@ public class SchemaBuilder {
 		XSModelGroup group = (XSModelGroup) term;
 		final short compositor = group.getCompositor();
 		switch (compositor) {
-		case XSModelGroup.COMPOSITOR_CHOICE:
-		case XSModelGroup.COMPOSITOR_SEQUENCE:
-			return particle.getMaxOccurs() > 1 || particle.getMaxOccursUnbounded();
-		default:
-			return false;
+			case XSModelGroup.COMPOSITOR_CHOICE:
+			case XSModelGroup.COMPOSITOR_SEQUENCE:
+				return particle.getMaxOccurs() > 1 || particle.getMaxOccursUnbounded();
+			default:
+				return false;
 		}
 	}
 
@@ -291,26 +318,26 @@ public class SchemaBuilder {
 			XSTerm term = particle.getTerm();
 
 			switch (term.getType()) {
-			case XSConstants.ELEMENT_DECLARATION:
-				XSElementDeclaration el = (XSElementDeclaration) term;
-				Schema.Field field = createField(fields.values(), el, el.getTypeDefinition(), forceOptional || optional, array);
-				fields.put(field.getProp(Source.SOURCE), field);
-				break;
-			case XSConstants.MODEL_GROUP:
-				XSModelGroup subGroup = (XSModelGroup) term;
-				if (particle.getMaxOccurs() <= 1 && !particle.getMaxOccursUnbounded())
-					createGroupFields(subGroup, fields, forceOptional || insideChoice);
-				else {
-					String fieldName = nextTypeName();
-					fields.put(fieldName, new Schema.Field(fieldName, createGroupSchema(nextTypeName(), subGroup), null, null));
-				}
-				break;
-			case XSConstants.WILDCARD:
-				field = createField(fields.values(), term, null, forceOptional || optional, array);
-				fields.put(field.getProp(Source.SOURCE), field);
-				break;
-			default:
-				throw new ConverterException("Unsupported term type " + term.getType());
+				case XSConstants.ELEMENT_DECLARATION:
+					XSElementDeclaration el = (XSElementDeclaration) term;
+					Schema.Field field = createField(fields.values(), el, el.getTypeDefinition(), forceOptional || optional, array);
+					fields.put(field.getProp(Source.SOURCE), field);
+					break;
+				case XSConstants.MODEL_GROUP:
+					XSModelGroup subGroup = (XSModelGroup) term;
+					if (particle.getMaxOccurs() <= 1 && !particle.getMaxOccursUnbounded())
+						createGroupFields(subGroup, fields, forceOptional || insideChoice);
+					else {
+						String fieldName = nextTypeName();
+						fields.put(fieldName, new Schema.Field(fieldName, createGroupSchema(nextTypeName(), subGroup), null, null));
+					}
+					break;
+				case XSConstants.WILDCARD:
+					field = createField(fields.values(), term, null, forceOptional || optional, array);
+					fields.put(field.getProp(Source.SOURCE), field);
+					break;
+				default:
+					throw new ConverterException("Unsupported term type " + term.getType());
 			}
 		}
 	}
@@ -376,7 +403,7 @@ public class SchemaBuilder {
 
 		int p = 0;
 		for (char c : chars) {
-			boolean valid = c >= 'a' && c <= 'z' || c >= 'A' && c <= 'z' || c >= '0' && c <= '9' || c == '_';
+			boolean valid = c >= 'a' && c <= 'z' || c >= 'A' && c <= 'z' || p > 0 && c >= '0' && c <= '9' || c == '_';
 
 			boolean separator = c == '.' || c == '-';
 
@@ -473,25 +500,25 @@ public class SchemaBuilder {
 
 			if (arg.startsWith("-"))
 				switch (arg) {
-				case "-d":
-				case "--debug":
-					debug = true;
-					break;
-				case "-b":
-				case "--baseDir":
-					if (i == args.length - 1)
-						throw new IllegalArgumentException("Base dir required");
-					i++;
-					baseDir = args[i];
-					break;
-				case "-o":
-					if (i == args.length - 1)
-						throw new IllegalArgumentException("Output file required");
-					i++;
-					out = new File(args[i]);
-					break;
-				default:
-					throw new IllegalArgumentException("Unsupported option " + arg);
+					case "-d":
+					case "--debug":
+						debug = true;
+						break;
+					case "-b":
+					case "--baseDir":
+						if (i == args.length - 1)
+							throw new IllegalArgumentException("Base dir required");
+						i++;
+						baseDir = args[i];
+						break;
+					case "-o":
+						if (i == args.length - 1)
+							throw new IllegalArgumentException("Output file required");
+						i++;
+						out = new File(args[i]);
+						break;
+					default:
+						throw new IllegalArgumentException("Unsupported option " + arg);
 				}
 			else
 				in = arg;

@@ -25,88 +25,96 @@ import org.apache.maven.shared.model.fileset.util.FileSetManager;
  */
 public class SchemaConverterMojo extends AbstractMojo {
 
-    /**
-     * Directory containing XML schema files.
-     *
-     * @parameter default-value="${project.basedir}/src/main/xsd"
-     */
-    private File sourceDirectory;
+	/**
+	 * Directory containing XML schema files.
+	 *
+	 * @parameter default-value="${project.basedir}/src/main/xsd"
+	 */
+	private File sourceDirectory;
 
-    /**
-     * Patterns used to select XML schema file names from the source directory
-     * for conversion. The default pattern is {@code **&#47;*.xsd}
-     *
-     * @parameter
-     */
-    private String[] includes = new String[] { "**/*.xsd" };
+	/**
+	 * Patterns used to select XML schema file names from the source directory
+	 * for conversion. The default pattern is {@code **&#47;*.xsd}
+	 *
+	 * @parameter
+	 */
+	private String[] includes = new String[] { "**/*.xsd" };
 
-    /**
-     * Directory where Avro schema files will be written
-     *
-     * @parameter
-     *         default-value="${project.build.directory}/generated-sources/avsc"
-     */
-    private File outputDirectory;
+	/**
+	 * Directory where Avro schema files will be written
+	 *
+	 * @parameter
+	 *         default-value="${project.build.directory}/generated-sources/avsc"
+	 */
+	private File outputDirectory;
 
-    /**
-     * Namespace for generated Avro named types
-     *
-     * @parameter
-     * @required
-     */
-    private String namespace;
+	/**
+	 * Namespace for generated Avro named types
+	 *
+	 * @parameter
+	 * @required
+	 */
+	private String namespace;
 
-    private String[] getIncludedFiles() {
-        FileSet files = new FileSet();
-        files.setDirectory(sourceDirectory.getAbsolutePath());
-        files.setFollowSymlinks(false);
-        for (String include : includes) {
-            files.addInclude(include);
-        }
+	/**
+	 * Namespace for generated Avro named types
+	 *
+	 * @parameter default-value=false
+	 */
+	private boolean debug;
 
-        FileSetManager fileSetManager = new FileSetManager();
-        return fileSetManager.getIncludedFiles(files);
-    }
+	private String[] getIncludedFiles() {
+		FileSet files = new FileSet();
+		files.setDirectory(sourceDirectory.getAbsolutePath());
+		files.setFollowSymlinks(false);
+		for (String include : includes) {
+			files.addInclude(include);
+		}
 
-    private Path toTargetFile(Path sourceFile) {
-        String name = sourceFile.getFileName().toString();
-        int dotIndex = name.lastIndexOf('.');
-        String base = (dotIndex > 0) ? name.substring(0, dotIndex) : name;
+		FileSetManager fileSetManager = new FileSetManager();
+		return fileSetManager.getIncludedFiles(files);
+	}
 
-        return Paths.get(outputDirectory.getAbsolutePath(), base + ".avsc");
-    }
+	private Path toTargetFile(Path sourceFile) {
+		String name = sourceFile.getFileName().toString();
+		int dotIndex = name.lastIndexOf('.');
+		String base = (dotIndex > 0) ? name.substring(0, dotIndex) : name;
 
-    private void convert(String includedFile) {
-        Path xmlSchemaFile =
-                Paths.get(sourceDirectory.getAbsolutePath(), includedFile);
-        getLog().info("XML schema input file: " + xmlSchemaFile);
+		return Paths.get(outputDirectory.getAbsolutePath(), base + ".avsc");
+	}
 
-        Path avroSchemaFile = toTargetFile(xmlSchemaFile);
-        getLog().info("Avro schema output file: " + avroSchemaFile);
+	private void convert(String includedFile) {
+		Path xmlSchemaFile =
+				Paths.get(sourceDirectory.getAbsolutePath(), includedFile);
+		getLog().info("XML schema input file: " + xmlSchemaFile);
 
-        SchemaBuilder schemaBuilder = new SchemaBuilder();
-        schemaBuilder.setResolver(
-                new BaseDirResolver(xmlSchemaFile.getParent()));
-        schemaBuilder.setNamespace(namespace);
-        Schema avroSchema = schemaBuilder.createSchema(xmlSchemaFile.toFile());
+		Path avroSchemaFile = toTargetFile(xmlSchemaFile);
+		getLog().info("Avro schema output file: " + avroSchemaFile);
 
-        try {
-            Files.createDirectories(avroSchemaFile.getParent());
-            try (Writer writer = Files.newBufferedWriter(
-                    avroSchemaFile, StandardCharsets.UTF_8))
-            {
-                writer.write(avroSchema.toString(true));
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Cannot write file " + avroSchemaFile, e);
-        }
-    }
+		SchemaBuilder schemaBuilder = new SchemaBuilder();
+		schemaBuilder.setResolver(
+				new BaseDirResolver(xmlSchemaFile.getParent()));
+		schemaBuilder.setNamespace(namespace);
+		schemaBuilder.setDebug(debug);
+		Schema avroSchema = schemaBuilder.createSchema(xmlSchemaFile.toFile());
 
-    @Override
-    public void execute() throws MojoFailureException {
-        for (String xmlSchemaFile : getIncludedFiles()) {
-            convert(xmlSchemaFile);
-        }
-    }
+		try {
+			Files.createDirectories(avroSchemaFile.getParent());
+			try (Writer writer = Files.newBufferedWriter(
+					avroSchemaFile, StandardCharsets.UTF_8))
+			{
+				writer.write(avroSchema.toString(true));
+			}
+		} catch (IOException e) {
+			throw new IllegalStateException(
+					"Cannot write file " + avroSchemaFile, e);
+		}
+	}
+
+	@Override
+	public void execute() throws MojoFailureException {
+		for (String xmlSchemaFile : getIncludedFiles()) {
+			convert(xmlSchemaFile);
+		}
+	}
 }

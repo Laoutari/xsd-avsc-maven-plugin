@@ -44,12 +44,16 @@ public class ConverterToXml {
 	}
 
 	private String getNs(String n) {
-		String ns = namespace.get(n);
-		if (ns == null) {
-			ns = "ns" + namespace.size();
-			namespace.put(n, ns);
+		if (n == null)
+			return null;
+		synchronized (namespace) {
+			String ns = namespace.get(n);
+			if (ns == null) {
+				ns = "ns" + namespace.size();
+				namespace.put(n, ns);
+			}
+			return ns;
 		}
-		return ns;
 	}
 
 	private void appendElems(Object o, Source s, Schema schema, StringBuilder sb) {
@@ -84,13 +88,16 @@ public class ConverterToXml {
 					else
 						child.add(new FieldSource(sf, f));
 				}
-				sb.append("<").append(ns).append(':').append(s.getName());
+				sb.append('<');
+				if (ns != null)
+					sb.append(ns).append(':');
+				sb.append(s.getName());
 				for (FieldSource fs : arg) {
 					Object object = r.get(fs.f.pos());
 					if (object != null) {
 						sb.append(" ");
-						if (fs.s.getNs() != null && !fs.s.getNs().equals(s.getNs()))
-							sb.append(getNs(fs.s.getNs())).append(':');
+//						if (fs.s.getNs() != null && !fs.s.getNs().equals(s.getNs()))
+//							sb.append(getNs(fs.s.getNs())).append(':');
 						sb.append(fs.s.getName()).append("=\"");
 						appendEscapeString(sb, object.toString());
 						sb.append('"');
@@ -102,15 +109,24 @@ public class ConverterToXml {
 					for (FieldSource fs : child) {
 						appendElems(r.get(fs.f.pos()), fs.s, fs.f.schema(), sb);
 					}
-					sb.append("</").append(ns).append(':').append(s.getName()).append('>');
+					sb.append("</");
+					if (ns != null)
+						sb.append(ns).append(':');
+					sb.append(s.getName()).append('>');
 				} else {
 					sb.append("/>");
 				}
 				break;
 			default:
-				sb.append("<").append(ns).append(':').append(s.getName()).append('>');
+				sb.append('<');
+				if (ns != null)
+					sb.append(ns).append(':');
+				sb.append(s.getName()).append('>');
 				appendEscapeString(sb, o.toString());
-				sb.append("</").append(ns).append(':').append(s.getName()).append('>');
+				sb.append("</");
+				if (ns != null)
+					sb.append(ns).append(':');
+				sb.append(s.getName()).append('>');
 				break;
 		}
 	}

@@ -17,6 +17,7 @@
 package ly.stealth.xmlavro;
 
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
 import org.json.JSONException;
 import org.junit.Test;
@@ -31,7 +32,9 @@ import static junit.framework.Assert.*;
 public class ConverterTest {
 	@Test
 	public void basic() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:element name='root' type='xs:string'/>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:element name='root' type='xs:string'/>"
+				+ "</xs:schema>";
 
 		Converter.createSchema(xsd);
 
@@ -79,7 +82,9 @@ public class ConverterTest {
 	}
 
 	public <T> void rootPrimitiveWithType(String xmlType, String xmlValue, Schema.Type avroType, T avroValue) {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "   <xs:element name='value' type='" + xmlType + "'/>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "   <xs:element name='value' type='" + xmlType + "'/>"
+				+ "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
 		assertEquals(avroType, schema.getType());
@@ -90,37 +95,45 @@ public class ConverterTest {
 
 	@Test
 	public void severalRoots() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "   <xs:element name='i' type='xs:int'/>" + "   <xs:element name='r'>"
-				+ "     <xs:complexType>" + "       <xs:sequence>" + "         <xs:element name='s' type='xs:string'/>" + "       </xs:sequence>" + "     </xs:complexType>"
-				+ "   </xs:element>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "   <xs:element name='i' type='xs:int'/>"
+				+ "   <xs:element name='r'>"
+				+ "     <xs:complexType>"
+				+ "       <xs:sequence>"
+				+ "         <xs:element name='s' type='xs:string'/>"
+				+ "       </xs:sequence>"
+				+ "     </xs:complexType>"
+				+ "   </xs:element>"
+				+ "</xs:schema>";
 
-		Schema schema = Converter.createSchema(xsd); // TODO
-//		assertEquals(Schema.Type.RECORD, schema.getType());
-//		assertTrue("Schema should have a valid name", schema.getName() != null && !schema.getName().isEmpty());
+		Schema schema = Converter.createSchema(xsd);
+		assertEquals(Schema.Type.RECORD, schema.getType());
+		assertTrue("Schema should have a valid name", schema.getName() != null && !schema.getName().isEmpty());
 //		assertEquals(Source.DOCUMENT, schema.getProp(Source.SOURCE));
-//		assertEquals(2, schema.getFields().size());
-//
-//		Schema.Field field0 = schema.getFields().get(0);
-//		assertEquals("" + new Source("i", null), field0.getProp(Source.SOURCE));
-//		assertEquals(Schema.Type.UNION, field0.schema().getType());
-//		assertEquals(Schema.Type.INT, field0.schema().getTypes().get(1).getType());
-//		assertEquals(Schema.Type.NULL, field0.schema().getTypes().get(0).getType());
-//
-//		Schema.Field field1 = schema.getFields().get(1);
-//		assertEquals("" + new Source("r", null), field1.getProp(Source.SOURCE));
-//		assertEquals(Schema.Type.UNION, field1.schema().getType());
-//		assertEquals(Schema.Type.RECORD, field1.schema().getTypes().get(1).getType());
-//		assertEquals(Schema.Type.NULL, field1.schema().getTypes().get(0).getType());
-//
-//		String xml = "<i>5</i>";
-//		GenericData.Record record = Converter.createDatum(schema, xml);
-//		assertEquals(null, record.get("r"));
-//		assertEquals(5, record.get("i"));
-//
-//		xml = "<r><s>s</s></r>";
-//		record = Converter.createDatum(schema, xml);
-//		GenericData.Record subRecord = (GenericData.Record) record.get("r");
-//		assertEquals("s", subRecord.get("s"));
+		assertEquals(2, schema.getFields().size());
+
+		Schema.Field field0 = schema.getFields().get(0);
+		assertEquals(Schema.Type.UNION, field0.schema().getType());
+		assertEquals(Schema.Type.INT, field0.schema().getTypes().get(1).getType());
+		assertEquals(Schema.Type.NULL, field0.schema().getTypes().get(0).getType());
+		assertEquals("" + new Source("i", null), field0.schema().getTypes().get(1).getProp(Source.SOURCE));
+
+		Schema.Field field1 = schema.getFields().get(1);
+		assertEquals(Schema.Type.UNION, field1.schema().getType());
+		assertEquals(Schema.Type.RECORD, field1.schema().getTypes().get(1).getType());
+		assertEquals(Schema.Type.NULL, field1.schema().getTypes().get(0).getType());
+		assertEquals("" + new Source("r", null), field1.schema().getTypes().get(1).getProp(Source.SOURCE));
+
+		String xml = "<i>5</i>";
+		GenericData.Record record = Converter.createDatum(schema, xml);
+		System.out.println(record.toString());
+		assertEquals(null, record.get("r"));
+		assertEquals(5, record.get("i"));
+
+		xml = "<r><s>s</s></r>";
+		record = Converter.createDatum(schema, xml);
+		GenericData.Record subRecord = (GenericData.Record) record.get("r");
+		assertEquals("s", subRecord.get("s"));
 	}
 
 	@Test
@@ -131,7 +144,7 @@ public class ConverterTest {
 
 		Schema schema = Converter.createSchema(xsd);
 		assertEquals(Schema.Type.RECORD, schema.getType());
-		assertEquals("AnonType_root", schema.getName());
+		assertEquals("root", schema.getName());
 		assertEquals(3, schema.getFields().size());
 
 		assertEquals(Schema.Type.INT, schema.getField("i").schema().getType());
@@ -148,34 +161,19 @@ public class ConverterTest {
 	}
 
 	@Test
-	public void nestedRecursiveRecords() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:complexType name='type'>" + "    <xs:sequence>"
-				+ "      <xs:element name='node' type='type' minOccurs='0'/>" + "    </xs:sequence>" + "  </xs:complexType>" + "  <xs:element name='root' type='type'/>"
+	public void attributes() {
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:element name='root'>"
+				+ "    <xs:complexType>"
+				+ "      <xs:attribute name='required' use='required'/>"
+				+ "      <xs:attribute name='prohibited' use='prohibited'/>"
+				+ "      <xs:attribute name='optional' use='optional'/>"
+				+ "    </xs:complexType>"
+				+ "  </xs:element>"
 				+ "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
-
-		Schema.Field field = schema.getField("node");
-		Schema subSchema = field.schema();
-		assertSame(schema, subSchema.getTypes().get(1));
-
-		String xml = "<root><node></node></root>";
-		GenericData.Record record = Converter.createDatum(schema, xml);
-
-		GenericData.Record child = (GenericData.Record) record.get("node");
-		assertEquals(record.getSchema(), child.getSchema());
-
-		assertNull(child.get("node"));
-	}
-
-	@Test
-	public void attributes() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:element name='root'>" + "    <xs:complexType>"
-				+ "      <xs:attribute name='required' use='required'/>" + "      <xs:attribute name='prohibited' use='prohibited'/>"
-				+ "      <xs:attribute name='optional' use='optional'/>" + "    </xs:complexType>" + "  </xs:element>" + "</xs:schema>";
-
-		Schema schema = Converter.createSchema(xsd);
-
+		System.out.println(schema.toString(true));
 		Schema.Field required = schema.getField("required");
 		assertEquals(Schema.Type.STRING, required.schema().getType());
 
@@ -198,8 +196,13 @@ public class ConverterTest {
 
 	@Test
 	public void uniqueFieldNames() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:complexType name='type'>" + "    <xs:sequence>"
-				+ "      <xs:element name='field' type='xs:string'/>" + "    </xs:sequence>" + "    <xs:attribute name='field' type='xs:string'/>" + "  </xs:complexType>"
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:complexType name='type'>"
+				+ "    <xs:sequence>"
+				+ "      <xs:element name='field' type='xs:string'/>"
+				+ "    </xs:sequence>"
+				+ "    <xs:attribute name='field' type='xs:string'/>"
+				+ "  </xs:complexType>"
 				+ "  <xs:element name='root' type='type'/>" + "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
@@ -221,9 +224,15 @@ public class ConverterTest {
 
 	@Test
 	public void recordWithWildcardField() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:complexType name='type'>" + "    <xs:sequence>"
-				+ "      <xs:element name='field' type='xs:string'/>" + "      <xs:any/>" + "    </xs:sequence>" + "  </xs:complexType>"
-				+ "  <xs:element name='root' type='type'/>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:complexType name='type'>"
+				+ "    <xs:sequence>"
+				+ "      <xs:element name='field' type='xs:string'/>"
+				+ "      <xs:any/>"
+				+ "    </xs:sequence>"
+				+ "  </xs:complexType>"
+				+ "  <xs:element name='root' type='type'/>"
+				+ "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
 		assertEquals(2, schema.getFields().size());
@@ -254,8 +263,16 @@ public class ConverterTest {
 
 	@Test
 	public void severalWildcards() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:element name='root'>" + "    <xs:complexType>" + "      <xs:sequence>"
-				+ "        <xs:any/>" + "        <xs:any/>" + "      </xs:sequence>" + "    </xs:complexType>" + "  </xs:element>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:element name='root'>"
+				+ "    <xs:complexType>"
+				+ "      <xs:sequence>"
+				+ "        <xs:any/>"
+				+ "        <xs:any/>"
+				+ "      </xs:sequence>"
+				+ "    </xs:complexType>"
+				+ "  </xs:element>"
+				+ "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
 		assertEquals(1, schema.getFields().size());
@@ -266,9 +283,15 @@ public class ConverterTest {
 
 	@Test
 	public void optionalElementValues() {
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:element name='root'>" + "    <xs:complexType>" + "      <xs:sequence>"
-				+ "        <xs:element name='required' type='xs:string'/>" + "        <xs:element name='optional' type='xs:string' minOccurs='0'/>" + "      </xs:sequence>"
-				+ "    </xs:complexType>" + "  </xs:element>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:element name='root'>" + "    <xs:complexType>"
+				+ "      <xs:sequence>"
+				+ "        <xs:element name='required' type='xs:string'/>"
+				+ "        <xs:element name='optional' type='xs:string' minOccurs='0'/>"
+				+ "      </xs:sequence>"
+				+ "    </xs:complexType>"
+				+ "  </xs:element>"
+				+ "</xs:schema>";
 
 		Schema schema = Converter.createSchema(xsd);
 		assertEquals(2, schema.getFields().size());
@@ -392,7 +415,7 @@ public class ConverterTest {
 		Object datum = Converter.createDatum(schema, xml);
 
 		// Then
-		JSONAssert.assertEquals("{" + "    'type': 'array'," + "    'items': {" + "        'type': 'record'," + "        'name': 'AnonType_root'," + "        'fields': ["
+		JSONAssert.assertEquals("{" + "    'type': 'array'," + "    'items': {" + "        'type': 'record'," + "        'name': 'root'," + "        'fields': ["
 				+ "            {" + "                'name': 's'," + "                'type': ['null', 'string']" + "            }," + "            {"
 				+ "                'name': 'i'," + "                'type': ['null', 'int']" + "            }" + "        ]" + "    }" + "}", schema.toString(), false);
 
@@ -402,12 +425,27 @@ public class ConverterTest {
 	@Test
 	public void arrayFromComplexTypeSequenceOfChoiceElements() throws JSONException {
 		// Given
-		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>" + "  <xs:element name='root'>" + "    <xs:complexType>" + "     <xs:sequence>"
-				+ "        <xs:element name='s' type='xs:string'/>" + "        <xs:element name='i' type='xs:int'/>" + "        <xs:choice maxOccurs='2'>"
-				+ "          <xs:element name='x' type='xs:string'/>" + "          <xs:element name='y' type='xs:int'/>" + "        </xs:choice>" + "     </xs:sequence>"
-				+ "    </xs:complexType>" + "  </xs:element>" + "</xs:schema>";
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ "  <xs:element name='root'>"
+				+ "    <xs:complexType>"
+				+ "     <xs:sequence>"
+				+ "        <xs:element name='s' type='xs:string'/>"
+				+ "        <xs:element name='i' type='xs:int'/>"
+				+ "        <xs:choice maxOccurs='2'>"
+				+ "          <xs:element name='x' type='xs:string'/>"
+				+ "          <xs:element name='y' type='xs:int'/>"
+				+ "        </xs:choice>"
+				+ "     </xs:sequence>"
+				+ "    </xs:complexType>"
+				+ "  </xs:element>"
+				+ "</xs:schema>";
 
-		String xml = "<root>" + "<s>s</s>" + "<i>1</i>" + "<x>x1</x>" + "<y>2</y>" + "</root>";
+		String xml = "<root>"
+				+ "<s>s</s>"
+				+ "<i>1</i>"
+				+ "<x>x1</x>"
+				+ "<y>2</y>"
+				+ "</root>";
 
 		// When
 		Schema schema = Converter.createSchema(xsd);
@@ -441,5 +479,23 @@ public class ConverterTest {
 		// built-in types
 		assertEquals("string0", builder.validName("string"));
 		assertEquals("record1", builder.validName("record"));
+	}
+
+	@Test
+	public void _enum() {
+		String xsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+				+ " <xs:element name='t'>"
+				+ "  <xs:simpleType>"
+				+ "   <xs:restriction base='xs:string'>"
+				+ "    <xs:enumeration value='v1'/>"
+				+ "    <xs:enumeration value='v2'/>"
+				+ "    <xs:enumeration value='v3'/>"
+				+ "    <xs:enumeration value='v4'/>"
+				+ "   </xs:restriction>"
+				+ "  </xs:simpleType>"
+				+ " </xs:element>"
+				+ "</xs:schema>";
+		Schema schema = Converter.createSchema(xsd);
+		assertEquals(Type.ENUM, schema.getType());
 	}
 }

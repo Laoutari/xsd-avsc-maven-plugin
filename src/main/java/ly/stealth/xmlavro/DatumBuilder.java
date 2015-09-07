@@ -146,7 +146,7 @@ public class DatumBuilder {
 	}
 
 	private Object createNodeDatum(Schema schema, Node source, boolean setRecordFromNode, boolean specific) throws InstantiationException, IllegalAccessException,
-			ClassNotFoundException {
+			ClassNotFoundException, NoSuchMethodException, SecurityException {
 		if (!Arrays.asList(Node.ELEMENT_NODE, Node.ATTRIBUTE_NODE).contains(source.getNodeType()))
 			throw new IllegalArgumentException("Unsupported node type " + source.getNodeType());
 
@@ -162,10 +162,23 @@ public class DatumBuilder {
 		if (schema.getType() == Schema.Type.ARRAY)
 			return createArray(schema, (Element) source, specific);
 
+		if (schema.getType() == Schema.Type.ENUM)
+			return createEnum(schema, source, specific);
+
 		throw new ConverterException("Unsupported schema type " + schema.getType());
 	}
 
-	private Object createArray(Schema schema, Element el, boolean specific) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Object createEnum(Schema schema, Node source, boolean specific) throws ClassNotFoundException, NoSuchMethodException, SecurityException {
+		if (specific) {
+			return Enum.valueOf((Class<? extends Enum>) getClass(schema), source.getNodeValue());
+		} else {
+			return new GenericData.EnumSymbol(schema, source.getNodeValue());
+		}
+	}
+
+	private Object createArray(Schema schema, Element el, boolean specific) throws InstantiationException, IllegalAccessException, ClassNotFoundException,
+			NoSuchMethodException, SecurityException {
 		NodeList childNodes = el.getChildNodes();
 		Schema elementType = schema.getElementType();
 		int numElements = childNodes.getLength();
@@ -184,7 +197,8 @@ public class DatumBuilder {
 		return array;
 	}
 
-	private Object createUnionDatum(Schema union, Node source, boolean specific) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+	private Object createUnionDatum(Schema union, Node source, boolean specific) throws InstantiationException, IllegalAccessException, ClassNotFoundException,
+			NoSuchMethodException, SecurityException {
 		List<Schema> types = union.getTypes();
 
 		boolean optionalNode = types.size() == 2 && types.get(0).getType() == Schema.Type.NULL;
@@ -234,7 +248,7 @@ public class DatumBuilder {
 	}
 
 	private Object createRecord(Schema schema, Element el, boolean setRecordFieldFromNode, boolean specific) throws InstantiationException, IllegalAccessException,
-			ClassNotFoundException {
+			ClassNotFoundException, NoSuchMethodException, SecurityException {
 		IndexedRecord record;
 		if (specific) {
 			Class<?> clazz = getClass(schema);
@@ -277,7 +291,7 @@ public class DatumBuilder {
 					continue;
 
 				if (!setRecordFieldFromNode) {
-					Schema.Field field = getFieldBySource(schema, new Source(attr.getName(), true));
+					Schema.Field field = getFieldBySource(schema, new Source(attr.getName(), attr.getNamespaceURI(), true));
 					if (field == null)
 						throw new ConverterException("Unsupported attribute " + attr.getName());
 
@@ -291,16 +305,16 @@ public class DatumBuilder {
 	}
 
 	private void setFieldFromNode(Schema schema, IndexedRecord record, Node node, boolean specific) throws InstantiationException, IllegalAccessException,
-			ClassNotFoundException {
+			ClassNotFoundException, NoSuchMethodException, SecurityException {
 		if (node.getNodeType() != Node.ELEMENT_NODE)
 			return;
 
 		Element child = (Element) node;
 		boolean setRecordFromNode = false;
 		final String fieldName = child.getLocalName();
-		Schema.Field field = getFieldBySource(schema, new Source(fieldName, false));
+		Schema.Field field = getFieldBySource(schema, new Source(fieldName, child.getNamespaceURI(), false));
 		if (field == null) {
-			field = getNestedFieldBySource(schema, new Source(fieldName, false));
+			field = getNestedFieldBySource(schema, new Source(fieldName, child.getNamespaceURI(), false));
 			setRecordFromNode = true;
 		}
 
@@ -318,7 +332,8 @@ public class DatumBuilder {
 		} else {
 			Schema.Field anyField = schema.getField(Source.WILDCARD);
 			if (anyField == null)
-				throw new ConverterException("Could not find field " + fieldName + " in Avro Schema " + schema.getName() + " , neither as specific field nor 'any' element");
+				throw new ConverterException("Could not find field " + fieldName + " in Avro Schema " + schema.toString(true)
+						+ " , neither as specific field nor 'any' element");
 
 			@SuppressWarnings("unchecked")
 			Map<String, String> map = (HashMap<String, String>) record.get(anyField.pos());
@@ -327,19 +342,19 @@ public class DatumBuilder {
 	}
 
 	Schema.Field getFieldBySource(Schema schema, Source source) {
-		if (schema.getType() == Schema.Type.UNION) {
-			return getFieldBySource(schema.getTypes().get(1), source);
-		} else {
-			for (Schema.Field field : schema.getFields()) {
-				String fieldSource = field.getProp(Source.SOURCE);
-				if (caseSensitiveNames && source.toString().equals(fieldSource))
-					return field;
-				if (!caseSensitiveNames && source.toString().equalsIgnoreCase(fieldSource))
-					return field;
-			}
-
-			return null;
+//		if (schema.getType() == Schema.Type.UNION) {
+//			return getFieldBySource(schema.getTypes().get(1), source);
+//		} else {
+		for (Schema.Field field : schema.getFields()) {
+			String fieldSource = field.getProp(Source.SOURCE);
+			if (caseSensitiveNames && source.toString().equals(fieldSource))
+				return field;
+			if (!caseSensitiveNames && source.toString().equalsIgnoreCase(fieldSource))
+				return field;
 		}
+
+		return null;
+//		}
 	}
 
 	Schema.Field getNestedFieldBySource(Schema schema, Source source) {
@@ -351,13 +366,15 @@ public class DatumBuilder {
 			Schema topSchema = field.schema();
 
 			switch (topSchema.getType()) {
-			case ARRAY: {
-				Schema.Field fieldBySource = getFieldBySource(topSchema.getElementType(), source);
-				if (fieldBySource != null) {
-					return field;
+				case ARRAY: {
+					Schema.Field fieldBySource = getFieldBySource(topSchema.getElementType(), source);
+					if (fieldBySource != null) {
+						return field;
+					}
 				}
-			}
-				break;
+					break;
+				default:
+					break;
 			}
 		}
 

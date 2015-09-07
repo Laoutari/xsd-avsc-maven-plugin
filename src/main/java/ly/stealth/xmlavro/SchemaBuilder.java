@@ -193,6 +193,7 @@ public class SchemaBuilder {
 
 	private int typeLevel;
 
+	@SuppressWarnings("unchecked")
 	private Schema createTypeSchema(XSTypeDefinition type, XSElementDeclaration el, boolean optional, boolean array) {
 		typeLevel++;
 		Schema schema = null;

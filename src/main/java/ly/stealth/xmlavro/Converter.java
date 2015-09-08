@@ -50,35 +50,35 @@ public class Converter {
 	}
 
 	public static <T> T createDatum(Schema schema, File file) {
-		return new DatumBuilder(schema).createDatum(file, false);
+		return new DatumBuilder().createDatum(schema, file, false);
 	}
 
 	public static <T> T createDatum(Schema schema, String xml) {
-		return new DatumBuilder(schema).createDatum(xml, false);
+		return new DatumBuilder().createDatum(schema, xml, false);
 	}
 
 	public static <T> T createDatum(Schema schema, Reader reader) {
-		return new DatumBuilder(schema).createDatum(reader, false);
+		return new DatumBuilder().createDatum(schema, reader, false);
 	}
 
 	public static <T> T createDatum(Schema schema, InputStream stream) {
-		return new DatumBuilder(schema).createDatum(stream, false);
+		return new DatumBuilder().createDatum(schema, stream, false);
 	}
 
 	public static <T> T createSpecificDatum(Schema schema, File file) {
-		return new DatumBuilder(schema).createDatum(file, true);
+		return new DatumBuilder().createDatum(schema, file, true);
 	}
 
 	public static <T> T createSpecificDatum(Schema schema, String xml) {
-		return new DatumBuilder(schema).createDatum(xml, true);
+		return new DatumBuilder().createDatum(schema, xml, true);
 	}
 
 	public static <T> T createSpecificDatum(Schema schema, Reader reader) {
-		return new DatumBuilder(schema).createDatum(reader, true);
+		return new DatumBuilder().createDatum(schema, reader, true);
 	}
 
 	public static <T> T createSpecificDatum(Schema schema, InputStream stream) {
-		return new DatumBuilder(schema).createDatum(stream, true);
+		return new DatumBuilder().createDatum(schema, stream, true);
 	}
 
 	private static class Options {
@@ -101,19 +101,19 @@ public class Converter {
 
 				if (arg.startsWith("-"))
 					switch (arg) {
-					case "-d":
-					case "--debug":
-						debug = true;
-						break;
-					case "-b":
-					case "--baseDir":
-						if (i == args.length - 1)
-							throw new IllegalArgumentException("Base dir required");
-						i++;
-						baseDir = args[i];
-						break;
-					default:
-						throw new IllegalArgumentException("Unsupported option " + arg);
+						case "-d":
+						case "--debug":
+							debug = true;
+							break;
+						case "-b":
+						case "--baseDir":
+							if (i == args.length - 1)
+								throw new IllegalArgumentException("Base dir required");
+							i++;
+							baseDir = args[i];
+							break;
+						default:
+							throw new IllegalArgumentException("Unsupported option " + arg);
 					}
 				else
 					files.add(arg);
@@ -169,8 +169,8 @@ public class Converter {
 			writer.write(schema.toString(true));
 		}
 
-		DatumBuilder datumBuilder = new DatumBuilder(schema);
-		Object datum = datumBuilder.createDatum(opts.xmlFile, false);
+		DatumBuilder datumBuilder = new DatumBuilder();
+		Object datum = datumBuilder.createDatum(schema, opts.xmlFile, false);
 
 		try (OutputStream stream = new FileOutputStream(opts.avroFile)) {
 			DatumWriter<Object> datumWriter = new SpecificDatumWriter<>(schema);

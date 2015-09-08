@@ -10,7 +10,6 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,8 +54,8 @@ public class DatumBuilder {
 
 	private static final List<Schema.Type> PRIMITIVES;
 	static {
-		PRIMITIVES = Collections.unmodifiableList(Arrays.asList(Schema.Type.STRING, Schema.Type.INT, Schema.Type.LONG, Schema.Type.FLOAT, Schema.Type.DOUBLE,
-				Schema.Type.BOOLEAN, Schema.Type.NULL));
+		PRIMITIVES = Arrays.asList(Schema.Type.STRING, Schema.Type.INT, Schema.Type.LONG, Schema.Type.FLOAT, Schema.Type.DOUBLE,
+				Schema.Type.BOOLEAN, Schema.Type.NULL);
 	}
 
 	private static TimeZone defaultTimeZone = TimeZone.getTimeZone("UTC-0");
@@ -69,11 +68,9 @@ public class DatumBuilder {
 		return defaultTimeZone;
 	}
 
-	private Schema schema;
 	private boolean caseSensitiveNames = true;
 
-	public DatumBuilder(Schema schema) {
-		this.schema = schema;
+	public DatumBuilder() {
 	}
 
 	public boolean isCaseSensitiveNames() {
@@ -84,9 +81,9 @@ public class DatumBuilder {
 		this.caseSensitiveNames = caseSensitiveNames;
 	}
 
-	public <T> T createDatum(String xml, boolean specific) {
+	public <T> T createDatum(Schema schema, String xml, boolean specific) {
 		try {
-			return createDatum(new StringReader(xml), specific);
+			return createDatum(schema, new StringReader(xml), specific);
 		} catch (ConverterException e) {
 			throw e;
 		} catch (Exception e) {
@@ -94,9 +91,9 @@ public class DatumBuilder {
 		}
 	}
 
-	public <T> T createDatum(File file, boolean specific) {
+	public <T> T createDatum(Schema schema, File file, boolean specific) {
 		try (InputStream stream = new FileInputStream(file)) {
-			return createDatum(stream, specific);
+			return createDatum(schema, stream, specific);
 		} catch (ConverterException e) {
 			throw e;
 		} catch (Exception e) {
@@ -104,9 +101,9 @@ public class DatumBuilder {
 		}
 	}
 
-	public <T> T createDatum(Reader reader, boolean specific) {
+	public <T> T createDatum(Schema schema, Reader reader, boolean specific) {
 		try {
-			return createDatum(new InputSource(reader), specific);
+			return createDatum(schema, new InputSource(reader), specific);
 		} catch (ConverterException e) {
 			throw e;
 		} catch (Exception e) {
@@ -114,9 +111,9 @@ public class DatumBuilder {
 		}
 	}
 
-	public <T> T createDatum(InputStream stream, boolean specific) {
+	public <T> T createDatum(Schema schema, InputStream stream, boolean specific) {
 		try {
-			return createDatum(new InputSource(stream), specific);
+			return createDatum(schema, new InputSource(stream), specific);
 		} catch (ConverterException e) {
 			throw e;
 		} catch (Exception e) {
@@ -124,9 +121,9 @@ public class DatumBuilder {
 		}
 	}
 
-	public <T> T createDatum(InputSource source, boolean specific) {
+	public <T> T createDatum(Schema schema, InputSource source, boolean specific) {
 		try {
-			return createDatum(parse(source), specific);
+			return createDatum(schema, parse(source), specific);
 		} catch (ConverterException e) {
 			throw e;
 		} catch (Exception e) {
@@ -135,7 +132,7 @@ public class DatumBuilder {
 	}
 
 	@SuppressWarnings("unchecked")
-	public <T> T createDatum(Element el, boolean specific) {
+	public <T> T createDatum(Schema schema, Element el, boolean specific) {
 		try {
 			return (T) createNodeDatum(schema, el, false, specific);
 		} catch (ConverterException e) {

@@ -3,10 +3,10 @@
         http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>com.github.pukkaone</groupId>
-	<artifactId>xsd-avsc-maven-plugin</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
-	<packaging>maven-plugin</packaging>
+        <groupId>com.github.pukkaone</groupId>
+        <artifactId>xsd-avsc-maven-plugin</artifactId>
+        <version>1.0.3-SNAPSHOT</version>
+        <packaging>jar</packaging>
 
 	<name>${project.artifactId}</name>
 	<description>XML schema to Avro schema converter Maven plugin</description>
@@ -41,8 +41,8 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-		<java.version>1.7</java.version>
-	</properties>
+        	<java.version>1.8</java.version>
+    </properties>
 
 	<dependencies>
 		<dependency>
@@ -93,19 +93,26 @@
 			<artifactId>xercesImpl</artifactId>
 			<version>2.11.0</version>
 		</dependency>
+	        <dependency>
+	            <groupId>com.sun.codemodel</groupId>
+	            <artifactId>codemodel</artifactId>
+	            <version>2.6</version>
+	        </dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.3</version>
-				<configuration>
-					<source>${java.version}</source>
-					<target>${java.version}</target>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
+	    <build>
+	        <plugins>
+	            <plugin>
+	                <groupId>org.apache.maven.plugins</groupId>
+	                <artifactId>maven-compiler-plugin</artifactId>
+	                <version>3.6.2</version>
+	                <configuration>
+	                    <source>${java.version}</source>
+	                    <target>${java.version}</target>
+	                    <meminitial>1024m</meminitial>
+	                </configuration>
+	            </plugin>
+	        </plugins>
+	    </build>
+
 </project>

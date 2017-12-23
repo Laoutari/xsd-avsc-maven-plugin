@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
-import javax.xml.bind.DatatypeConverter;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -26,6 +26,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import ly.stealth.xmlavro.api.Api;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
@@ -168,9 +169,9 @@ public class DatumBuilder {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private Object createEnum(Schema schema, Node source, boolean specific) throws ClassNotFoundException, NoSuchMethodException, SecurityException {
 		if (specific) {
-			return Enum.valueOf((Class<? extends Enum>) getClass(schema), source.getNodeValue());
+			return Enum.valueOf((Class<? extends Enum>) getClass(schema), Api.removeSymbols(source));
 		} else {
-			return new GenericData.EnumSymbol(schema, source.getNodeValue());
+			return new GenericData.EnumSymbol(schema, Api.removeSymbols(source));
 		}
 	}
 
@@ -199,10 +200,33 @@ public class DatumBuilder {
 		List<Schema> types = union.getTypes();
 
 		boolean optionalNode = types.size() == 2 && types.get(0).getType() == Schema.Type.NULL;
-		if (!optionalNode)
-			throw new ConverterException("Unsupported union types " + types);
+		if (!optionalNode) {
+			GenericData.Record gRecord = null;
+			boolean skipFirst = (types.get(0).getType() == Schema.Type.NULL);
 
-		return createNodeDatum(types.get(1), source, false, specific);
+			for (Schema schema: types) {
+				try {
+					if (skipFirst) {
+						skipFirst = false;
+					} else {
+						GenericData.Record datum = (GenericData.Record) createNodeDatum(schema, source, false, false);
+						boolean ok = true;
+						for (Schema.Field field : schema.getFields()) {
+							if ((!((field.schema().getType() == Schema.Type.UNION) && (field.schema().getTypes().get(0).getType() == Schema.Type.NULL))) && (datum.get(field.name()) == null)) {
+								ok = false;
+							}
+						}
+
+						if (ok) gRecord = datum;
+					}
+				} catch (Throwable t) {
+				}
+			}
+
+			return gRecord;
+		}
+
+		return createNodeDatum(types.get(1), source, false, false);
 	}
 
 	private Object createValue(Schema.Type type, String text) {
@@ -213,7 +237,7 @@ public class DatumBuilder {
 			return Integer.parseInt(text);
 
 		if (type == Schema.Type.LONG)
-			return text.contains("T") ? parseDateTime(text) : Long.parseLong(text);
+			return DateFormat.parseAnything(text);
 
 		if (type == Schema.Type.FLOAT)
 			return Float.parseFloat(text);
@@ -225,12 +249,6 @@ public class DatumBuilder {
 			return text;
 
 		throw new ConverterException("Unsupported type " + type);
-	}
-
-	private static long parseDateTime(String text) {
-		Calendar c = DatatypeConverter.parseDateTime(text);
-		c.setTimeZone(defaultTimeZone);
-		return c.getTimeInMillis();
 	}
 
 	Map<Schema, Class<?>> classCache = new HashMap<Schema, Class<?>>();
@@ -298,6 +316,15 @@ public class DatumBuilder {
 			}
 		}
 
+		// Key value field
+		if (!specific) {
+			Schema.Field textField = schema.getField(SchemaBuilder.KEY_VALUE_FIELD_NAME);
+			if (textField != null) {
+				Object datum = createNodeDatum(textField.schema(), el, false, specific);
+				GenericData.Record gRecord = (GenericData.Record) record;
+				gRecord.put(textField.name(), datum);
+			}
+		}
 		return record;
 	}
 
@@ -311,19 +338,20 @@ public class DatumBuilder {
 		final String fieldName = child.getLocalName();
 		Schema.Field field = getFieldBySource(schema, new Source(fieldName, child.getNamespaceURI(), false));
 		if (field == null) {
-			field = getNestedFieldBySource(schema, new Source(fieldName, child.getNamespaceURI(), false));
-			setRecordFromNode = true;
+			field = getNestedFieldBySource(schema, new Source(fieldName, false));
+			setRecordFromNode = (field != null);
 		}
 
 		if (field != null) {
+			GenericData.Record grecord = (GenericData.Record) record;
 			boolean array = field.schema().getType() == Schema.Type.ARRAY;
 			Object datum = createNodeDatum(!array ? field.schema() : field.schema().getElementType(), child, setRecordFromNode, specific);
 
 			if (!array)
-				record.put(field.pos(), datum);
+				grecord.put(field.name(), datum);
 			else {
 				@SuppressWarnings("unchecked")
-				List<Object> values = (List<Object>) record.get(field.pos());
+				List<Object> values = (List<Object>) grecord.get(field.name());
 				values.add(datum);
 			}
 		} else {
@@ -339,9 +367,9 @@ public class DatumBuilder {
 	}
 
 	Schema.Field getFieldBySource(Schema schema, Source source) {
-//		if (schema.getType() == Schema.Type.UNION) {
-//			return getFieldBySource(schema.getTypes().get(1), source);
-//		} else {
+		if (schema.getType() == Schema.Type.UNION) {
+			return getFieldBySource(schema.getTypes().get(1), source);
+		} else {
 		for (Schema.Field field : schema.getFields()) {
 			String fieldSource = field.getProp(Source.SOURCE);
 			if (caseSensitiveNames && source.toString().equals(fieldSource))
@@ -351,7 +379,7 @@ public class DatumBuilder {
 		}
 
 		return null;
-//		}
+		}
 	}
 
 	Schema.Field getNestedFieldBySource(Schema schema, Source source) {

@@ -1,12 +1,12 @@
 package ly.stealth.xmlavro;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 import org.apache.xerces.xni.XMLResourceIdentifier;
 import org.apache.xerces.xni.XNIException;
 import org.apache.xerces.xni.parser.XMLEntityResolver;
 import org.apache.xerces.xni.parser.XMLInputSource;
+
+import java.io.IOException;
+import java.io.InputStream;
 
 class EntityResolver implements XMLEntityResolver {
 	private Resolver resolver;

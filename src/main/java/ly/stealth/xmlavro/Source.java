@@ -21,13 +21,17 @@ class Source {
 		this(name, ns, false);
 	}
 
+	public Source(String name) {
+		this(name, false);
+	}
+
 	public Source(String name, boolean attribute) {
 		this(name, null, attribute);
 	}
 
 	public Source(String name, String ns, boolean attribute) {
 		this.name = name;
-		this.ns = ns;
+		this.ns = null;
 		this.attribute = attribute;
 	}
 
